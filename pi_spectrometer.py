@@ -6,7 +6,7 @@ from PIL import ImageTk, Image
 import os
 import subprocess
 import io
-from threading import Thread
+
 
 
 #camera setting, to be replaced by GUI menu. Use pickle to save settings between uses?
