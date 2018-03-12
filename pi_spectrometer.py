@@ -6,16 +6,20 @@ from PIL import ImageTk, Image
 import os
 import subprocess
 import io
+import webbrowser
 
 
+#camera settings, to be replaced by GUI menu. Use pickle to save settings between uses?
+camera = picamera.PiCamera()
 
-#camera setting, to be replaced by GUI menu. Use pickle to save settings between uses?
-camera = picamera.PiCamera(framerate = 10)
-camera.rotation = 270
-camera.iso = 1600
-camera.shutter_speed = 6000000000
+camera_settings = [10, 270, 1600, 6000000000]
+
+camera.framerate= camera_settings[0]
+camera.rotation = camera_settings[1]
+camera.iso = camera_settings[2]
+camera.shutter_speed = camera_settings[3]
 camera.zoom= (0.25, 0.25, 0.5, 0.5)
-camera.resolution = (1280,720)
+
 
 #track if camera preview is running
 global preview_active
@@ -34,6 +38,9 @@ if not os.path.exists(upload_directory):
 
 def open_pictures():
     subprocess.call(['xdg-open', spectra_directory])
+
+def open_pictures_shortcut(event):
+    open_pictures()
 
 #allow keyboard to initiate camera capture    
 def capture_spectrum(event):
@@ -70,7 +77,7 @@ def spacebar(event):
     #check to see if camera is active before attempting image capture
     if preview_active:
         #get sampel name
-        sample_name = sample_input.get()
+        sample_name = sample_input.get().strip()
         #open io stream. Need to close afterwards?
         stream=io.BytesIO()
         #capture to stream as png
@@ -118,8 +125,100 @@ def esc_key(event):
         camera.stop_preview()
         camera.remove_overlay(o)
         preview_active=False
-        
-        
+
+def show_about():
+    #define About window
+    about = tk.Toplevel()
+    about.title("about")
+    about.geometry('300x300')
+    name = tk.Label(about, text="Pi-Spectrometer")
+    name.config(font= ('Helvetica', 28, 'bold'))
+    instruction = tk.Label(about, text='For use with Raspberry Pi \n and Raspberry Pi Camera Module')
+
+    instruction2 = tk.Label(about, text='Lego Spectrometer plans available at:')
+    instruction2.configure(font='bold')
+    public_lab_link = tk.Label(about, text='Public Lab', fg='blue', cursor='hand2')
+    public_lab_link.configure(font='bold')
+
+    instruction3 = tk.Label(about, text='Analyse captured spectra at:')
+    instruction3.configure(font='bold')
+    spectral_workbench_link = tk.Label(about, text='Spectral Workbench', fg='blue', cursor='hand2')
+    spectral_workbench_link.configure(font='bold')
+    
+    version = tk.Label(about, text='Version: 2.1')
+    author = tk.Label(about, text='Coded by Ian King')
+    code = tk.Label(about, text='Powered by Python')
+    ok = tk.Button(about, text='OK', command=about.destroy)
+    
+    name.pack()
+    
+    version.pack()
+
+    instruction.pack(pady=10)
+
+    instruction2.pack()
+    public_lab_link.pack(pady=5)
+    public_lab_link.bind('<Button-1>', lambda event: webbrowser.open_new(r'https://publiclab.org/w/lego-spectrometer'))
+
+    instruction3.pack()
+    spectral_workbench_link.pack(pady=5)
+    spectral_workbench_link.bind('<Button-1>', lambda event: webbrowser.open_new(r'https://spectralworkbench.org'))
+    author.pack()
+    code.pack() 
+    ok.pack()
+
+
+
+def update_settings():
+    global settings
+    global entries
+    global camera_settings
+    
+    for i in range(0, len(camera_settings)):
+        camera_settings[i] = entries[i].get()
+
+    camera.framerate = int(camera_settings[0])
+    camera.rotation = int(camera_settings[1])
+    camera.iso = int(camera_settings[2])
+    camera.shutter_speed = int(camera_settings[3])
+
+    status.configure(text='Camera settings updated.')
+    settings.destroy()
+
+def update_shortcut(event):
+    update_settings()
+    
+def show_settings():
+    global settings
+    global entries
+    global camera_settings
+    settings = tk.Toplevel()
+    settings.title('Settings')
+    entries = []
+
+    fields = ['Framerate (fps):', 'Rotation:', 'ISO:', 'Shutter Speed (ns):']
+    #defaults = ['10', '6', '1600', '(1280, 720)', '270']
+
+    for i in range(0,len(fields)):
+        row = tk.Frame(settings)
+        lab = tk.Label(row, width=15, text=fields[i], anchor=tk.W)
+        ent = tk.Entry(row)
+        ent.insert(tk.END, camera_settings[i])
+        row.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        lab.pack(side=tk.LEFT)
+        ent.pack(side=tk.RIGHT)
+        entries.append(ent)
+
+    button_row = tk.Frame(settings)
+    apply_settings = tk.Button(button_row, text='Apply', command = update_settings)
+    cancel = tk.Button(button_row, text='Close', command = settings.destroy)
+
+    button_row.pack(side=tk.BOTTOM, pady=5, padx=5, fill=tk.X)
+    cancel.pack(side=tk.RIGHT)
+    apply_settings.pack(side=tk.RIGHT)
+
+    settings.bind('<Return>', update_shortcut)
+    
 root = tk.Tk()
 
 last_spectrum = ImageTk.PhotoImage(Image.new('RGB', (1280, 50), color = 'black'))
@@ -128,19 +227,35 @@ last_spectrum = ImageTk.PhotoImage(Image.new('RGB', (1280, 50), color = 'black')
 root.title('Pi-Spectrometer')
 root.geometry('1280x200')
 sample_controls = tk.Frame(root)
+#root.resizable(width=False, height=False)
 
 #bind keyboard shortcuts and controls
 root.bind('<space>', spacebar)
 root.bind('<Escape>', esc_key)
 root.bind('<Return>', capture_spectrum)
 
+#define menubar
+menubar = tk.Menu(root)
+
+main_menu = tk.Menu(menubar, tearoff=0)
+main_menu.add_command(label = "View Spectra", command=open_pictures)
+
+main_menu.add_command(label = "Settings", command=show_settings)
+main_menu.add_command(label = "About", command=show_about)
+main_menu.add_separator()
+main_menu.add_command(label = "Exit", command=root.destroy)
+
+menubar.add_cascade(label='Menu', menu=main_menu)
+root.configure(menu=menubar)
+
 #define widgets
 sample_instruction = tk.Label(sample_controls, text='Sample ID:')
 sample_input = tk.Entry(sample_controls)
 take_sample = tk.Button(sample_controls, text='Capture Spectrum', command=start_preview)
-last_image = tk.Label(image=last_spectrum)
+last_image = tk.Label(image=last_spectrum, cursor='hand2')
 last_image.image = last_spectrum #keep reference
-view_spectra = tk.Button(root, text='View Spectra', command = open_pictures)
+last_image.bind('<Button-1>', open_pictures_shortcut)
+#view_spectra = tk.Button(root, text='View Spectra', command = open_pictures) #moved to cascade menu
 status = tk.Label(root, text="ready", bd=1, relief=tk.SUNKEN, anchor=tk.W)
 
 #pack widgets
@@ -149,10 +264,8 @@ sample_controls.pack(side=tk.TOP, pady=50, padx=10)
 sample_instruction.pack(side=tk.LEFT)
 sample_input.pack(side=tk.LEFT)
 take_sample.pack(side=tk.LEFT)
-view_spectra.pack(side=tk.RIGHT, padx=10, pady=10)
+#view_spectra.pack(side=tk.RIGHT, padx=10, pady=10) #moved to cascade menu
 last_image.pack()
-
-
 
 
 root.mainloop()
