@@ -267,5 +267,5 @@ take_sample.pack(side=tk.LEFT)
 #view_spectra.pack(side=tk.RIGHT, padx=10, pady=10) #moved to cascade menu
 last_image.pack()
 
-
-root.mainloop()
+if __name__ == '__main__':
+    root.mainloop()
